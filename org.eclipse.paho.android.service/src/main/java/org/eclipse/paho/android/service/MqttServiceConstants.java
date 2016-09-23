@@ -91,8 +91,11 @@ interface MqttServiceConstants {
   static final String TRACE_ERROR = "error";
   static final String TRACE_DEBUG = "debug";
   static final String TRACE_EXCEPTION = "exception";
-  
-  
+  static final int    PERSISTENCE_NULL = 0;
+  static final int    PERSISTENCE_DEFAULT = 1;
+  static final int    PERSISTENCE_MERMEORY = 2;
+  /** Empty String for comparisons **/
+  static final String empty = new String();
   //exception code for non MqttExceptions
   static final int NON_MQTT_EXCEPTION = -1;
 

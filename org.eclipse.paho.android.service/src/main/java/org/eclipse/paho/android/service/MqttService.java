@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.eclipse.paho.android.service.IAidlPersistence;
+import org.eclipse.paho.android.service.IMqttServiceInterface;
 import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
@@ -29,6 +31,8 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 import org.eclipse.paho.client.mqttv3.MqttSecurityException;
 import org.eclipse.paho.client.mqttv3.internal.DisconnectedMessageBuffer;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
 
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningTaskInfo;
@@ -44,6 +48,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
+import android.os.RemoteException;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -259,7 +264,97 @@ public class MqttService extends Service implements MqttTraceHandler {
   public MqttService() {
     super();
   }
+  public IBinder iBinder = new IMqttServiceInterface.Stub() {
+      @Override
+      public String getClient(String serverURI, String clientId, String contextId, IAidlPersistence persistence) throws RemoteException {
+          return MqttService.this.getClient(serverURI, clientId, contextId,MqttService.this.convertPersistence(persistence));
+      }
+    @Override
+    public void connect(String clientHandle, ConnectionOptions connectOptions, String invocationContext, String activityToken) throws RemoteException{
+      try {
+        MqttService.this.connect(clientHandle,connectOptions,invocationContext,activityToken);
+      } catch (MqttException e) {
+        e.printStackTrace();
+      }
+    }
+    @Override
+    public void setTraceEnabled( boolean traceEnabled)throws RemoteException{
+      MqttService.this.setTraceEnabled(traceEnabled);
+    }
+    @Override
+    public  void setTraceCallbackId( String traceCallbackId)throws RemoteException{
+      MqttService.this.setTraceCallbackId(traceCallbackId);
+    }
+    @Override
+    public void reconnect()throws RemoteException{
+      MqttService.this.reconnect();
+    }
+    @Override
+    public void close( String clientHandle)throws RemoteException{
+      MqttService.this.close(clientHandle);
+    }
+    @Override
+    public void disconnect( String clientHandle, String invocationContext,
+                            String activityToken)throws RemoteException{
+      MqttService.this.disconnect(clientHandle, invocationContext, activityToken);
+    }
+    @Override
+    public  void disconnectContainTimeout(String clientHandle, long quiesceTimeout,
+                                 String invocationContext, String activityToken)throws RemoteException{
+      MqttService.this.disconnect(clientHandle, quiesceTimeout,invocationContext, activityToken);
+    }
+    @Override
+    public DeliveryTokenOptions publishMessage(String clientHandle, String topic,
+                                                byte[] payload, int qos, boolean retained,
+                                               String invocationContext, String activityToken) throws  RemoteException{
+      try {
+        return MqttService.this.publish(clientHandle,topic,payload,qos,retained,invocationContext,activityToken);
+      } catch (MqttException e) {
+        e.printStackTrace();
+      }
+      return null;
+    }
+    @Override
+    public DeliveryTokenOptions publish(String clientHandle, String topic,
+                                         AidlMessage message, String invocationContext, String activityToken) throws RemoteException{
+      try {
+        return MqttService.this.publish(clientHandle, topic, message, invocationContext, activityToken);
+      } catch (MqttException e) {
+        e.printStackTrace();
+      }
+      return null;
+    }
+    @Override
+    public void subscribe(String clientHandle, String topic, int qos,
+                          String invocationContext, String activityToken)throws RemoteException{
+      MqttService.this.subscribe(clientHandle,topic,qos,invocationContext,activityToken);
+    }
+    @Override
+    public void subscribeArray(String clientHandle, String[] topic, int[] qos,
+                               String invocationContext, String activityToken)throws RemoteException{
+      MqttService.this.subscribe(clientHandle, topic, qos, invocationContext, activityToken);
+    }
+  };
+   private   MqttClientPersistence convertPersistence (IAidlPersistence iAidlPersistence) throws RemoteException{
+        MqttClientPersistence persistence = null;
+     if(iAidlPersistence!=null){
+       int type = iAidlPersistence.getPersistenceType();
+       switch (type){
+         case MqttServiceConstants.PERSISTENCE_NULL:
+           if(iAidlPersistence.getAbsFileDir()!=null)
+             persistence = new MqttDefaultFilePersistence(iAidlPersistence.getAbsFileDir());
+           break;
+         case MqttServiceConstants.PERSISTENCE_DEFAULT:
+           persistence = new MemoryPersistence();
+           break;
+         case MqttServiceConstants.PERSISTENCE_MERMEORY:
+           break;
 
+       }
+     }
+
+       return persistence;
+   }
   /**
    * pass data back to the Activity, by building a suitable Intent object and
    * broadcasting it
@@ -323,11 +418,11 @@ public class MqttService extends Service implements MqttTraceHandler {
    * @throws MqttSecurityException
    * @throws MqttException
    */
-  public void connect(String clientHandle, MqttConnectOptions connectOptions,
+  public void connect(String clientHandle, ConnectionOptions connectOptions,
       String invocationContext, String activityToken)
-      throws MqttSecurityException, MqttException {
+      throws  MqttException {
 	  	MqttConnection client = getConnection(clientHandle);
-	  	client.connect(connectOptions, invocationContext, activityToken);
+	  	client.connect(connectOptions.convertToMqtt(), invocationContext, activityToken);
 
   }
 
@@ -436,14 +531,22 @@ public class MqttService extends Service implements MqttTraceHandler {
    * @throws MqttException
    * @return token for tracking the operation
    */
-  public IMqttDeliveryToken publish(String clientHandle, String topic,
+  public DeliveryTokenOptions publish(String clientHandle, String topic,
       byte[] payload, int qos, boolean retained,
       String invocationContext, String activityToken)
       throws MqttPersistenceException, MqttException {
     MqttConnection client = getConnection(clientHandle);
-    return client.publish(topic, payload, qos, retained, invocationContext,
-        activityToken);
+    IMqttDeliveryToken token = client.publish(topic, payload, qos, retained, invocationContext,
+            activityToken);
+    DeliveryTokenOptions options = new DeliveryTokenOptions();
+    options.setGrantedQos(token.getGrantedQos());
+    options.setMessageId(token.getMessageId());
+    options.setSessionPresent(token.getSessionPresent());
+
+    return options;
+
   }
+
 
   /**
    * Publish a message to a topic
@@ -462,13 +565,25 @@ public class MqttService extends Service implements MqttTraceHandler {
    * @throws MqttException
    * @return token for tracking the operation
    */
-  public IMqttDeliveryToken publish(String clientHandle, String topic,
-      MqttMessage message, String invocationContext, String activityToken)
+  public DeliveryTokenOptions publish(String clientHandle, String topic,
+      AidlMessage message, String invocationContext, String activityToken)
       throws MqttPersistenceException, MqttException {
     MqttConnection client = getConnection(clientHandle);
-    return client.publish(topic, message, invocationContext, activityToken);
+    IMqttDeliveryToken token = client.publish(topic,convertAidlMessage( message), invocationContext, activityToken);
+    DeliveryTokenOptions options = new DeliveryTokenOptions();
+    options.setGrantedQos(token.getGrantedQos());
+    options.setMessageId(token.getMessageId());
+    options.setSessionPresent(token.getSessionPresent());
+    return options;
   }
-
+   private MqttMessage convertAidlMessage(AidlMessage message){
+     MqttMessage mqttMessage = new MqttMessage();
+     mqttMessage.setPayload(message.getPayload());
+     mqttMessage.setRetained(message.isRetained());
+     mqttMessage.setQos(message.getQos());
+     mqttMessage.setId(message.getMessageId());
+     return mqttMessage;
+   }
   /**
    * Subscribe to a topic
    *
@@ -661,7 +776,7 @@ public class MqttService extends Service implements MqttTraceHandler {
     String activityToken = intent
         .getStringExtra(MqttServiceConstants.CALLBACK_ACTIVITY_TOKEN);
     mqttServiceBinder.setActivityToken(activityToken);
-    return mqttServiceBinder;
+    return iBinder;
   }
 
   /**

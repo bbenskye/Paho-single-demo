@@ -359,7 +359,7 @@ public class EditConnectionFragment extends Fragment {
     private void populateFromConnectionModel(ConnectionModel connectionModel) {
         clientId.setText(connectionModel.getClientId());
         serverHostname.setText(connectionModel.getServerHostName());
-       serverPort.setText(Integer.toString(connectionModel.getServerPort()));
+        serverPort.setText(Integer.toString(connectionModel.getServerPort()));
         cleanSession.setChecked(connectionModel.isCleanSession());
         username.setText(connectionModel.getUsername());
         password.setText(connectionModel.getPassword());

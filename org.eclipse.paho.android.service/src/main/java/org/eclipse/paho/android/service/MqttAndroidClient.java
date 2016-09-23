@@ -24,6 +24,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.sql.Connection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,6 +33,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.eclipse.paho.android.service.IMqttServiceInterface;
 import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttAsyncClient;
@@ -56,6 +58,7 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.SparseArray;
 
@@ -101,7 +104,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	private static final int BIND_SERVICE_FLAG = 0;
 
 	private static ExecutorService pool = Executors.newCachedThreadPool();
-
+    private IMqttServiceInterface aidlInterface;
 	/**
 	 * ServiceConnection to process when we bind to our service
 	 */
@@ -111,6 +114,8 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		public void onServiceConnected(ComponentName name, IBinder binder) {
 			mqttService = ((MqttServiceBinder) binder).getService();
 			bindedService = true;
+		    aidlInterface=
+				   IMqttServiceInterface.Stub.asInterface(binder);
 			// now that we have the service available, we can actually
 			// connect...
 			doConnect();
@@ -143,7 +148,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	private String serverURI;
 	private String clientId;
 	private MqttClientPersistence persistence = null;
-	private MqttConnectOptions connectOptions;
+	private ConnectionOptions connectOptions;
 	private IMqttToken connectToken;
 
 	// The MqttCallback provided by the application
@@ -299,7 +304,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		 System.out.println(clientId);
 		 System.out.println(myContext.getApplicationInfo().packageName);
 		 System.out.println(persistence);
-		 clientHandle = mqttService.getClient(serverURI, clientId, myContext.getApplicationInfo().packageName,persistence);
+		 try {
+			 clientHandle = aidlInterface.getClient(serverURI, clientId, myContext.getApplicationInfo().packageName,null);
+		 } catch (RemoteException e) {
+			 e.printStackTrace();
+		 }
 	 }
 	 mqttService.close(clientHandle);
 	}
@@ -398,7 +407,55 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 * @throws MqttException
 	 *             for any connected problems, including communication errors
 	 */
+	public IMqttToken connect(ConnectionOptions options,Object userContext,
+							  IMqttActionListener callback)throws MqttException {
+		IMqttToken token = new MqttTokenAndroid(this, userContext,
+				callback);
 
+		connectOptions = options;
+		connectToken = token;
+
+		/*
+		 * The actual connection depends on the service, which we start and bind
+		 * to here, but which we can't actually use until the serviceConnection
+		 * onServiceConnected() method has run (asynchronously), so the
+		 * connection itself takes place in the onServiceConnected() method
+		 */
+		if (aidlInterface == null) { // First time - must bind to the service
+			Intent serviceStartIntent = new Intent();
+			serviceStartIntent.setClassName(myContext, SERVICE_NAME);
+			Object service = myContext.startService(serviceStartIntent);
+			if (service == null) {
+				IMqttActionListener listener = token.getActionCallback();
+				if (listener != null) {
+					listener.onFailure(token, new RuntimeException(
+							"cannot start service " + SERVICE_NAME));
+				}
+			}
+
+			// We bind with BIND_SERVICE_FLAG (0), leaving us the manage the lifecycle
+			// until the last time it is stopped by a call to stopService()
+			myContext.bindService(serviceStartIntent, serviceConnection,
+					Context.BIND_AUTO_CREATE);
+
+			if (!receiverRegistered) registerReceiver(this);
+		}
+		else {
+			pool.execute(new Runnable() {
+
+				@Override
+				public void run() {
+					doConnect();
+
+					//Register receiver to show shoulder tap.
+					if (!receiverRegistered) registerReceiver(MqttAndroidClient.this);
+				}
+
+			});
+		}
+
+		return token;
+	}
 	@Override
 	public IMqttToken connect(MqttConnectOptions options, Object userContext,
 			IMqttActionListener callback) throws MqttException {
@@ -406,7 +463,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback);
 
-		connectOptions = options;
+//		connectOptions = options;
 		connectToken = token;
 
 		/*
@@ -463,8 +520,12 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 */
 	private void doConnect() {
 		if (clientHandle == null) {
-			clientHandle = mqttService.getClient(serverURI, clientId,myContext.getApplicationInfo().packageName,
-					persistence);
+			try {
+				clientHandle = aidlInterface.getClient(serverURI, clientId,myContext.getApplicationInfo().packageName,
+                        null);
+			} catch (RemoteException e) {
+				e.printStackTrace();
+			}
 		}
 		mqttService.setTraceEnabled(traceEnabled);
 		mqttService.setTraceCallbackId(clientHandle);
@@ -724,7 +785,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		MqttDeliveryTokenAndroid token = new MqttDeliveryTokenAndroid(
 				this, userContext, callback, message);
 		String activityToken = storeToken(token);
-		IMqttDeliveryToken internalToken = mqttService.publish(clientHandle,
+		DeliveryTokenOptions internalToken = mqttService.publish(clientHandle,
 				topic, payload, qos, retained, null, activityToken);
 		token.setDelegate(internalToken);
 		return token;
@@ -821,12 +882,20 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		MqttDeliveryTokenAndroid token = new MqttDeliveryTokenAndroid(
 				this, userContext, callback, message);
 		String activityToken = storeToken(token);
-		IMqttDeliveryToken internalToken = mqttService.publish(clientHandle,
-				topic, message, null, activityToken);
+
+		DeliveryTokenOptions internalToken = mqttService.publish(clientHandle,
+				topic, convertMessage(message), null, activityToken);
 		token.setDelegate(internalToken);
 		return token;
 	}
-
+    private AidlMessage convertMessage(MqttMessage message){
+		AidlMessage aidlMessage = new AidlMessage();
+		aidlMessage.setMessageId(message.getId());
+		aidlMessage.setPayload(message.getPayload());
+		aidlMessage.setQos(message.getQos());
+		aidlMessage.setRetained(message.isRetained());
+		return aidlMessage;
+	}
 	/**
 	 * Subscribe to a topic, which may include wildcards.
 	 * 
@@ -1782,3 +1851,4 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		}
 	}
 }
+

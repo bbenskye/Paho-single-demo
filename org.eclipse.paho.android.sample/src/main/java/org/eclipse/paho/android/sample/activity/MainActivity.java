@@ -18,6 +18,7 @@ import android.view.View;
 import org.eclipse.paho.android.sample.R;
 import org.eclipse.paho.android.sample.internal.Connections;
 import org.eclipse.paho.android.sample.model.ConnectionModel;
+import org.eclipse.paho.android.service.ConnectionOptions;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 
@@ -274,7 +275,6 @@ public class MainActivity extends AppCompatActivity implements FragmentDrawer.Fr
 
 
     private MqttConnectOptions optionsFromModel(ConnectionModel model){
-
         MqttConnectOptions connOpts = new MqttConnectOptions();
         connOpts.setCleanSession(model.isCleanSession());
         connOpts.setConnectionTimeout(model.getTimeout());

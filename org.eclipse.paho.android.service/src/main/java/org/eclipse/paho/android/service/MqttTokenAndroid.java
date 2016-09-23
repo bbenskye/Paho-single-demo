@@ -41,7 +41,7 @@ class MqttTokenAndroid implements IMqttToken {
 
   private String[] topics;
 
-  private IMqttToken delegate; // specifically for getMessageId
+  private DeliveryTokenOptions delegate; // specifically for getMessageId
 
   private MqttException pendingException;
 
@@ -222,7 +222,7 @@ class MqttTokenAndroid implements IMqttToken {
     return userContext;
   }
 
-  void setDelegate(IMqttToken delegate) {
+  void setDelegate(DeliveryTokenOptions delegate) {
     this.delegate = delegate;
   }
 
@@ -236,12 +236,13 @@ class MqttTokenAndroid implements IMqttToken {
   
   @Override
   public MqttWireMessage getResponse() {
-    return delegate.getResponse();
+//    return delegate.getResponse();
+    return null;
   }
   
   @Override
   public boolean getSessionPresent() {
-    return delegate.getSessionPresent();
+    return delegate.isSessionPresent();
   }
   
   @Override
