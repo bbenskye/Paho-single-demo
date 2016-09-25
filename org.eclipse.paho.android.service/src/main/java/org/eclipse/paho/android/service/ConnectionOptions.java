@@ -20,7 +20,20 @@ public class ConnectionOptions implements Parcelable {
     private String lwtMessage;
     private int lwtQos = 0;
     private boolean lwtRetain =  false;
+    private static String Empty = new String();
     public ConnectionOptions (){
+
+    }
+    public ConnectionOptions(MqttConnectOptions options){
+        cleanSession = options.isCleanSession();
+        timeout = options.getConnectionTimeout();
+        keepAlive = options.getKeepAliveInterval();
+        if(options.getUserName()!=null&&!options.getUserName().equals(Empty)){
+            userName = options.getUserName();
+        }
+        if(options.getPassword()!=null&&!options.getPassword().equals(Empty)){
+            password = options.getPassword().toString();
+        }
 
     }
     public boolean isCleanSession() {
@@ -144,11 +157,11 @@ public class ConnectionOptions implements Parcelable {
         options.setCleanSession(cleanSession);
         options.setConnectionTimeout(timeout);
         options.setKeepAliveInterval(keepAlive);
-        if(!userName.equals(new String()))
+        if(userName!=null&&!userName.equals(new String()))
         options.setUserName(userName);
-        if(!password.equals(new String()))
+        if(password!=null&&!password.equals(new String()))
         options.setPassword(password.toCharArray());
-        if(!lwtTopic.equals(new String()))
+        if(lwtTopic!=null&&!lwtTopic.equals(new String()))
         options.setWill(lwtTopic,lwtMessage.getBytes(),lwtQos,lwtRetain);
         return options;
     }

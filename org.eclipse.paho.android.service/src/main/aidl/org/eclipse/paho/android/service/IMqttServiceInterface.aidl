@@ -4,6 +4,7 @@ import org.eclipse.paho.android.service.IAidlPersistence;
 import org.eclipse.paho.android.service.ConnectionOptions;
 import org.eclipse.paho.android.service.DeliveryTokenOptions;
 import org.eclipse.paho.android.service.AidlMessage;
+import org.eclipse.paho.android.service.AidlDisconnectedBufferOptions;
 // Declare any non-default types here with import statements
 
 interface IMqttServiceInterface {
@@ -32,4 +33,15 @@ interface IMqttServiceInterface {
       String invocationContext, String activityToken);
  void unsubscribe(String clientHandle,  String topic,
        String invocationContext, String activityToken);
+       void unsubscribeArray(String clientHandle, in String[] topic,
+             String invocationContext, String activityToken);
+  int acknowledgeMessageArrival(String clientHandle, String id);
+  boolean isOnline();
+  void notifyClientsOffline();
+  boolean isConnected(String clientHandle);
+  void traceError(String tag, String message);
+  int getBufferedMessageCount(String clientHandle);
+  AidlMessage getBufferedMessage(String clientHandle, int bufferIndex);
+  void deleteBufferedMessage(String clientHandle, int bufferIndex);
+void setBufferOpts(String clientHandle, in AidlDisconnectedBufferOptions bufferOpts);
 }

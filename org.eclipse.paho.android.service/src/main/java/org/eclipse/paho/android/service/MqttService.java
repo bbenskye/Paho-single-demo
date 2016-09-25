@@ -52,6 +52,8 @@ import android.os.RemoteException;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+import static org.eclipse.paho.android.service.Status.OK;
+
 /**
  * <p>
  * The android service which interfaces with an MQTT client implementation
@@ -265,58 +267,67 @@ public class MqttService extends Service implements MqttTraceHandler {
     super();
   }
   public IBinder iBinder = new IMqttServiceInterface.Stub() {
-      @Override
-      public String getClient(String serverURI, String clientId, String contextId, IAidlPersistence persistence) throws RemoteException {
-          return MqttService.this.getClient(serverURI, clientId, contextId,MqttService.this.convertPersistence(persistence));
-      }
     @Override
-    public void connect(String clientHandle, ConnectionOptions connectOptions, String invocationContext, String activityToken) throws RemoteException{
+    public String getClient(String serverURI, String clientId, String contextId, IAidlPersistence persistence) throws RemoteException {
+      return MqttService.this.getClient(serverURI, clientId, contextId, MqttService.this.convertPersistence(persistence));
+    }
+
+    @Override
+    public void connect(String clientHandle, ConnectionOptions connectOptions, String invocationContext, String activityToken) throws RemoteException {
       try {
-        MqttService.this.connect(clientHandle,connectOptions,invocationContext,activityToken);
+        MqttService.this.connect(clientHandle, connectOptions, invocationContext, activityToken);
       } catch (MqttException e) {
         e.printStackTrace();
       }
     }
+
     @Override
-    public void setTraceEnabled( boolean traceEnabled)throws RemoteException{
+    public void setTraceEnabled(boolean traceEnabled) throws RemoteException {
       MqttService.this.setTraceEnabled(traceEnabled);
     }
+
     @Override
-    public  void setTraceCallbackId( String traceCallbackId)throws RemoteException{
+    public void setTraceCallbackId(String traceCallbackId) throws RemoteException {
       MqttService.this.setTraceCallbackId(traceCallbackId);
     }
+
     @Override
-    public void reconnect()throws RemoteException{
+    public void reconnect() throws RemoteException {
       MqttService.this.reconnect();
     }
+
     @Override
-    public void close( String clientHandle)throws RemoteException{
+    public void close(String clientHandle) throws RemoteException {
       MqttService.this.close(clientHandle);
     }
+
     @Override
-    public void disconnect( String clientHandle, String invocationContext,
-                            String activityToken)throws RemoteException{
+    public void disconnect(String clientHandle, String invocationContext,
+                           String activityToken) throws RemoteException {
       MqttService.this.disconnect(clientHandle, invocationContext, activityToken);
     }
+
     @Override
-    public  void disconnectContainTimeout(String clientHandle, long quiesceTimeout,
-                                 String invocationContext, String activityToken)throws RemoteException{
-      MqttService.this.disconnect(clientHandle, quiesceTimeout,invocationContext, activityToken);
+    public void disconnectContainTimeout(String clientHandle, long quiesceTimeout,
+                                         String invocationContext, String activityToken) throws RemoteException {
+      MqttService.this.disconnect(clientHandle, quiesceTimeout, invocationContext, activityToken);
     }
+
     @Override
     public DeliveryTokenOptions publishMessage(String clientHandle, String topic,
-                                                byte[] payload, int qos, boolean retained,
-                                               String invocationContext, String activityToken) throws  RemoteException{
+                                               byte[] payload, int qos, boolean retained,
+                                               String invocationContext, String activityToken) throws RemoteException {
       try {
-        return MqttService.this.publish(clientHandle,topic,payload,qos,retained,invocationContext,activityToken);
+        return MqttService.this.publish(clientHandle, topic, payload, qos, retained, invocationContext, activityToken);
       } catch (MqttException e) {
         e.printStackTrace();
       }
       return null;
     }
+
     @Override
     public DeliveryTokenOptions publish(String clientHandle, String topic,
-                                         AidlMessage message, String invocationContext, String activityToken) throws RemoteException{
+                                        AidlMessage message, String invocationContext, String activityToken) throws RemoteException {
       try {
         return MqttService.this.publish(clientHandle, topic, message, invocationContext, activityToken);
       } catch (MqttException e) {
@@ -324,15 +335,78 @@ public class MqttService extends Service implements MqttTraceHandler {
       }
       return null;
     }
+
     @Override
     public void subscribe(String clientHandle, String topic, int qos,
-                          String invocationContext, String activityToken)throws RemoteException{
-      MqttService.this.subscribe(clientHandle,topic,qos,invocationContext,activityToken);
+                          String invocationContext, String activityToken) throws RemoteException {
+      MqttService.this.subscribe(clientHandle, topic, qos, invocationContext, activityToken);
     }
+
     @Override
     public void subscribeArray(String clientHandle, String[] topic, int[] qos,
-                               String invocationContext, String activityToken)throws RemoteException{
+                               String invocationContext, String activityToken) throws RemoteException {
       MqttService.this.subscribe(clientHandle, topic, qos, invocationContext, activityToken);
+    }
+
+    @Override
+    public void unsubscribe(String clientHandle, String topic,
+                            String invocationContext, String activityToken) throws RemoteException {
+      MqttService.this.unsubscribe(clientHandle, topic, invocationContext, activityToken);
+    }
+
+    @Override
+    public void unsubscribeArray(String clientHandle, String[] topic,
+                            String invocationContext, String activityToken) throws RemoteException {
+      MqttService.this.unsubscribe(clientHandle, topic, invocationContext, activityToken);
+    }
+
+    @Override
+    public int acknowledgeMessageArrival(String clientHandle, String id) throws RemoteException {
+      switch (MqttService.this.acknowledgeMessageArrival(clientHandle, id)) {
+        case OK:
+          return 0;
+        case ERROR:
+          return 1;
+      }
+      return 1;
+    }
+
+    @Override
+    public boolean isOnline() throws RemoteException {
+
+      return MqttService.this.isOnline();
+    }
+
+    @Override
+    public boolean isConnected(String clientHandle) throws RemoteException {
+      return MqttService.this.isConnected(clientHandle);
+    }
+
+    @Override
+    public void notifyClientsOffline() throws RemoteException {
+      MqttService.this.notifyClientsOffline();
+    }
+
+    @Override
+    public void traceError(String tag, String message) throws RemoteException {
+      MqttService.this.traceError(tag, message);
+    }
+
+    @Override
+    public int getBufferedMessageCount(String clientHandle) throws RemoteException {
+      return MqttService.this.getBufferedMessageCount(clientHandle);
+    }
+    @Override
+    public AidlMessage getBufferedMessage(String clientHandle, int bufferIndex)throws RemoteException{
+      return new AidlMessage(MqttService.this.getBufferedMessage(clientHandle,bufferIndex));
+    }
+    @Override
+    public void deleteBufferedMessage(String clientHandle, int bufferIndex)throws RemoteException{
+      MqttService.this.deleteBufferedMessage(clientHandle,bufferIndex);
+    }
+    @Override
+    public void setBufferOpts(String clientHandle,  AidlDisconnectedBufferOptions bufferOpts)throws RemoteException{
+      MqttService.this.setBufferOpts(clientHandle,bufferOpts.convertOptions());
     }
   };
    private   MqttClientPersistence convertPersistence (IAidlPersistence iAidlPersistence) throws RemoteException{
@@ -715,7 +789,7 @@ public class MqttService extends Service implements MqttTraceHandler {
    */
   public Status acknowledgeMessageArrival(String clientHandle, String id) {
     if (messageStore.discardArrived(clientHandle, id)) {
-      return Status.OK;
+      return OK;
     }
     else {
       return Status.ERROR;

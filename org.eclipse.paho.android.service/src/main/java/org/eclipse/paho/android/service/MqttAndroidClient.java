@@ -112,7 +112,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder binder) {
-			mqttService = ((MqttServiceBinder) binder).getService();
+//			mqttService = ((MqttServiceBinder) binder).getService();
 			bindedService = true;
 		    aidlInterface=
 				   IMqttServiceInterface.Stub.asInterface(binder);
@@ -123,7 +123,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 
 		@Override
 		public void onServiceDisconnected(ComponentName name) {
-			mqttService = null;
+			aidlInterface = null;
 		}
 	}
 
@@ -131,7 +131,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	private MyServiceConnection serviceConnection = new MyServiceConnection();
 
 	// The Android Service which will process our mqtt calls
-	private MqttService mqttService;
+//	private MqttService mqttService;
 
 	// An identifier for the underlying client connection, which we can pass to
 	// the service
@@ -254,11 +254,17 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	@Override
 	public boolean isConnected() {
 
-		if (clientHandle != null && mqttService != null) {
-			return mqttService.isConnected(clientHandle);
+		if (clientHandle != null && aidlInterface != null) {
+			try{
+				return aidlInterface.isConnected(clientHandle);
+
+			}catch (RemoteException e){
+
+			}
 		} else {
 			return false;
 		}
+		return false;
 	}
 
 	/**
@@ -310,7 +316,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 			 e.printStackTrace();
 		 }
 	 }
-	 mqttService.close(clientHandle);
+		try {
+			aidlInterface.close(clientHandle);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -463,7 +473,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback);
 
-//		connectOptions = options;
+		connectOptions = new ConnectionOptions(options);
 		connectToken = token;
 
 		/*
@@ -472,7 +482,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		 * onServiceConnected() method has run (asynchronously), so the
 		 * connection itself takes place in the onServiceConnected() method
 		 */
-		if (mqttService == null) { // First time - must bind to the service
+		if (aidlInterface == null) { // First time - must bind to the service
 			Intent serviceStartIntent = new Intent();
 			serviceStartIntent.setClassName(myContext, SERVICE_NAME);
 			Object service = myContext.startService(serviceStartIntent);
@@ -527,19 +537,19 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 				e.printStackTrace();
 			}
 		}
-		mqttService.setTraceEnabled(traceEnabled);
-		mqttService.setTraceCallbackId(clientHandle);
-		
+		try {
+			aidlInterface.setTraceEnabled(traceEnabled);
+			aidlInterface.setTraceCallbackId(clientHandle);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
+
 		String activityToken = storeToken(connectToken);
 		try {
-			mqttService.connect(clientHandle, connectOptions, null,
+			aidlInterface.connect(clientHandle, connectOptions, null,
 					activityToken);
-		}
-		catch (MqttException e) {
-			IMqttActionListener listener = connectToken.getActionCallback();
-			if (listener != null) {
-				listener.onFailure(connectToken, e);
-			}
+		} catch(RemoteException e){
+
 		}
 	}
 
@@ -563,7 +573,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, null,
 				(IMqttActionListener) null);
 		String activityToken = storeToken(token);
-		mqttService.disconnect(clientHandle, null, activityToken);
+		try {
+			aidlInterface.disconnect(clientHandle, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 
@@ -592,8 +606,12 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, null,
 				(IMqttActionListener) null);
 		String activityToken = storeToken(token);
-		mqttService.disconnect(clientHandle, quiesceTimeout, null,
-				activityToken);
+		try {
+			aidlInterface.disconnectContainTimeout(clientHandle, quiesceTimeout, null,
+                    activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 
@@ -624,7 +642,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback);
 		String activityToken = storeToken(token);
-		mqttService.disconnect(clientHandle, null, activityToken);
+		try {
+			aidlInterface.disconnect(clientHandle, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 
@@ -677,8 +699,12 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback);
 		String activityToken = storeToken(token);
-		mqttService.disconnect(clientHandle, quiesceTimeout, null,
-				activityToken);
+		try {
+			aidlInterface.disconnectContainTimeout(clientHandle, quiesceTimeout, null,
+                    activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 
@@ -785,8 +811,13 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		MqttDeliveryTokenAndroid token = new MqttDeliveryTokenAndroid(
 				this, userContext, callback, message);
 		String activityToken = storeToken(token);
-		DeliveryTokenOptions internalToken = mqttService.publish(clientHandle,
-				topic, payload, qos, retained, null, activityToken);
+		DeliveryTokenOptions internalToken = null;
+		try {
+			internalToken = aidlInterface.publishMessage(clientHandle,
+                    topic, payload, qos, retained, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		token.setDelegate(internalToken);
 		return token;
 	}
@@ -883,8 +914,13 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 				this, userContext, callback, message);
 		String activityToken = storeToken(token);
 
-		DeliveryTokenOptions internalToken = mqttService.publish(clientHandle,
-				topic, convertMessage(message), null, activityToken);
+		DeliveryTokenOptions internalToken = null;
+		try {
+			internalToken = aidlInterface.publish(clientHandle,
+                    topic, convertMessage(message), null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		token.setDelegate(internalToken);
 		return token;
 	}
@@ -984,7 +1020,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback, new String[]{topic});
 		String activityToken = storeToken(token);
-		mqttService.subscribe(clientHandle, topic, qos, null, activityToken);
+		try {
+			aidlInterface.subscribe(clientHandle, topic, qos, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 
@@ -1124,7 +1164,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback, topic);
 		String activityToken = storeToken(token);
-		mqttService.subscribe(clientHandle, topic, qos, null, activityToken);
+		try {
+			aidlInterface.subscribeArray(clientHandle, topic, qos, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 	
@@ -1222,7 +1266,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	public IMqttToken subscribe(String[] topicFilters, int[] qos, Object userContext, IMqttActionListener callback, IMqttMessageListener[] messageListeners) throws MqttException {
 		IMqttToken token = new MqttTokenAndroid(this, userContext, callback, topicFilters);
 		String activityToken = storeToken(token);
-		mqttService.subscribe(clientHandle, topicFilters, qos, null, activityToken, messageListeners);
+		try {
+			aidlInterface.subscribeArray(clientHandle, topicFilters, qos, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 
 		return null;
 	}
@@ -1289,7 +1337,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback);
 		String activityToken = storeToken(token);
-		mqttService.unsubscribe(clientHandle, topic, null, activityToken);
+		try {
+			aidlInterface.unsubscribe(clientHandle, topic, null, activityToken);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 		return token;
 	}
 
@@ -1336,7 +1388,11 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		IMqttToken token = new MqttTokenAndroid(this, userContext,
 				callback);
 		String activityToken = storeToken(token);
-		mqttService.unsubscribe(clientHandle, topic, null, activityToken);
+		try {
+			aidlInterface.unsubscribeArray(clientHandle, topic, null, activityToken);
+		}catch (RemoteException e){
+
+		}
 		return token;
 	}
 
@@ -1360,7 +1416,8 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 */
 	@Override
 	public IMqttDeliveryToken[] getPendingDeliveryTokens() {
-		return mqttService.getPendingDeliveryTokens(clientHandle);
+//		return mqttService.getPendingDeliveryTokens(clientHandle);
+		return null;
 	}
 
 	/**
@@ -1400,7 +1457,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 */
 	public void setTraceCallback(MqttTraceHandler traceCallback) {
 		this.traceCallback = traceCallback;
-	 // mqttService.setTraceCallbackId(traceCallbackId);
+//	  aidlInterface.setT(traceCallbackId);
 	}
 
 	/**
@@ -1413,8 +1470,12 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 */
 	public void setTraceEnabled(boolean traceEnabled) {
 	this.traceEnabled = traceEnabled;
-	if (mqttService !=null)
-			mqttService.setTraceEnabled(traceEnabled);
+	if (aidlInterface !=null)
+		try {
+			aidlInterface.setTraceEnabled(traceEnabled);
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -1473,7 +1534,13 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 		else if (MqttServiceConstants.TRACE_ACTION.equals(action)) {
 			traceAction(data);
 		}else{
-			mqttService.traceError(MqttService.TAG, "Callback action doesn't exist.");	
+			try{
+				aidlInterface.traceError(MqttService.TAG, "Callback action doesn't exist.");
+			}
+			catch (RemoteException e){
+
+			}
+
 		}
 
 	}
@@ -1490,8 +1557,14 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 */
 	public boolean acknowledgeMessage(String messageId) {
 		if (messageAck == Ack.MANUAL_ACK) {
-			Status status = mqttService.acknowledgeMessageArrival(clientHandle, messageId);
-			return status == Status.OK;
+//			Status status = null;
+			int status =0;
+			try {
+				status = aidlInterface.acknowledgeMessageArrival(clientHandle, messageId);
+			} catch (RemoteException e) {
+				e.printStackTrace();
+			}
+			return status == 0;
 		}
 		return false;
 
@@ -1579,7 +1652,13 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 				((MqttTokenAndroid) token).notifyFailure(exceptionThrown);
 			}
 		} else {
-			mqttService.traceError(MqttService.TAG, "simpleAction : token is null");	
+			try{
+				aidlInterface.traceError(MqttService.TAG, "simpleAction : token is null");
+
+			}
+			catch (RemoteException e){
+
+			}
 		}
 	}
 
@@ -1649,7 +1728,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 			try {
 				if (messageAck == Ack.AUTO_ACK) {
 					callback.messageArrived(destinationName, message);
-					mqttService.acknowledgeMessageArrival(clientHandle, messageId);
+					aidlInterface.acknowledgeMessageArrival(clientHandle, messageId);
 				}
 				else {
 					message.messageId = messageId;
@@ -1734,19 +1813,41 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 	 * @param bufferOpts
 	 */
 	public void setBufferOpts(DisconnectedBufferOptions bufferOpts) {
-		mqttService.setBufferOpts(clientHandle, bufferOpts);
+		try{
+			aidlInterface.setBufferOpts(clientHandle,new AidlDisconnectedBufferOptions(bufferOpts));
+
+		}catch (RemoteException e){
+
+		}
 	}
 
 	public int getBufferedMessageCount(){
-		return mqttService.getBufferedMessageCount(clientHandle);
+		try{
+			return aidlInterface.getBufferedMessageCount(clientHandle);
+
+		}catch (RemoteException e){
+
+		}
+return 0;
 	}
 
 	public MqttMessage getBufferedMessage(int bufferIndex){
-		return mqttService.getBufferedMessage(clientHandle, bufferIndex);
+		try{
+			return (aidlInterface.getBufferedMessage(clientHandle, bufferIndex)).convertMqttMessage();
+
+		}catch (RemoteException e){
+
+		}
+		return null;
 	}
 
 	public void deleteBufferedMessage(int bufferIndex){
-		mqttService.deleteBufferedMessage(clientHandle, bufferIndex);
+		try{
+			aidlInterface.deleteBufferedMessage(clientHandle, bufferIndex);
+		}
+		catch (RemoteException e){
+
+		}
 	}
 	
 	/**

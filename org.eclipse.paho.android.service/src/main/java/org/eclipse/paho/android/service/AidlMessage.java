@@ -3,6 +3,8 @@ package org.eclipse.paho.android.service;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+
 /**
  * Created by yangpeng on 2016/9/23.
  */
@@ -20,6 +22,13 @@ public class AidlMessage implements Parcelable{
         messageId = in.readInt();
     }
     public AidlMessage(){
+
+    }
+    public AidlMessage(MqttMessage message){
+        payload = message.getPayload();
+        qos = message.getQos();
+        retained = message.isRetained();
+        messageId = message.getId();
 
     }
     public static final Creator<AidlMessage> CREATOR = new Creator<AidlMessage>() {
@@ -79,4 +88,13 @@ public class AidlMessage implements Parcelable{
         dest.writeByte((byte) (retained ? 1 : 0));
         dest.writeInt(messageId);
     }
+    public MqttMessage convertMqttMessage(){
+        MqttMessage message = new MqttMessage();
+        message.setId(messageId);
+        message.setPayload(payload);
+        message.setQos(qos);
+        message.setRetained(retained);
+        return message;
+    }
+
 }
